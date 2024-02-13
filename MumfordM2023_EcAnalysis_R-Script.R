@@ -1,13 +1,18 @@
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Supplementary material:
 #
-# Paper title: Incorporating environmental covariates to explore genotype ? environment ? 
-#              management (G?E?M) interactions: A one-stage predictive model
+# Paper title: Incorporating environmental covariates to explore genotype x environment x 
+#              management (GxExM) interactions: A one-stage predictive model
 #
 # R-script and data to reproduce the statistical models, predictions and figures 
 # in the core manuscript
 #
 # Note that this code for ASReml-R version 4.1 and does not currently work for ASReml-R version 4.2
+#
+#   Also Note the the Baseline model has been slightly modified since the that used in the publication 
+#   to include a Subplot term for the Moree trial. The differences in each of the figures is negligible. 
+#   If you would like to obtain identical results to
+#   those in the paper, please refer to the R-script in the original commit on the 21st July 2023.
 #
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -17,12 +22,12 @@
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # 1.2. Load the required R-packages ----
-require(asreml) # Need to have an accompanying ASReml-R license
-require(lattice)
-require(tidyverse)
-require(plot3D)
-require(plotly)
-require(viridis)
+library(asreml) # Need to have an accompanying ASReml-R license
+library(lattice)
+library(tidyverse)
+library(plot3D)
+library(plotly)
+library(viridis)
 
 # Load required source code
 # This source code is available as supplementary material from Verbyla (2019).
@@ -39,7 +44,7 @@ Sorghum_df$density <- round(Sorghum_df$density, 2)
 # 2.1 Run analysis for baseline model ----
 Baseline_fm <- asreml( Yld ~ Genotype + density + Genotype:density,
   random =~ at(Trial):Rep  + at(Trial):MainPlot + 
-    at(Trial,c(1:3)):SubPlot +
+    at(Trial,c('Breeza 1', 'Breeza 2', 'Emerald', 'Moree')):SubPlot +
     at(Trial,'Breeza 1'):Column + 
     Trial + Env +
     spl(density, k=6) + spl(density, k=6):Genotype +
@@ -93,6 +98,8 @@ rownames(Env_Var) <- colnames(Sorghum_df)[14:31]
 colnames(Env_Var)  <- c("full_loglik","p","q","b","AIC","BIC",
                         "Cor_Yld_Pred","RMSE_Yld_Pred")
 
+# Define a variable that identifies the trials that had split-split plot designs
+trials_splt_split_plot <- c('Breeza 1', 'Breeza 2', 'Emerald', 'Moree')
 
 # 3.2 Create a for loop to perform the forward selection procedure ----
 # Note that in order to calculate RMSEP for the EC "Irrig", need to drop spline terms from the model
@@ -107,7 +114,7 @@ for(i in c(1:18)) {
   Temp_fm <- asreml( Yld ~ Genotype + density + Genotype:density + 
                        ec + Genotype:ec + density:ec + Genotype:density:ec,
                      random =~ at(Trial):Rep  + at(Trial):MainPlot +
-                       at(Trial,c(1:3)):SubPlot +
+                       at(Trial,c('Breeza 1', 'Breeza 2', 'Emerald', 'Moree')):SubPlot + +
                        at(Trial,'Breeza 1'):Column +
                        Trial + Env +
                        spl(density, k=6) + spl(density, k=6):Genotype +
@@ -154,12 +161,16 @@ for(i in c(1:18)) {
     Sorghum_subset_df$Env <- factor(Sorghum_subset_df$Env)
     Sorghum_subset_df$ResidualTOS <- factor(Sorghum_subset_df$ResidualTOS)
     Sorghum_subset_df$Genotype <- factor(Sorghum_subset_df$Genotype)
+    
+    # Identify trials with a split-split plot design from the subsetted data 
+    subset_splt_split_plot <- levels(Sorghum_subset_df$Trial)[levels(Sorghum_subset_df$Trial)%in%trials_splt_split_plot]
+    
     # Run a slightly different version of the model based on which trial has been removed in the cross validation procedure
     if(j==1){
       Temp_subset_fm <- asreml( Yld ~ Genotype + density + Genotype:density + 
                                   ec + Genotype:ec + density:ec + Genotype:density:ec,
                                 random =~ at(Trial):Rep  + at(Trial):MainPlot +
-                                  at(Trial,c(1:3)):SubPlot +
+                                  at(Trial,subset_splt_split_plot):SubPlot +
                                   #at(Trial,'Breeza 1'):Column +
                                   Trial + Env +
                                   spl(density, k=6) + spl(density, k=6):Genotype +
@@ -179,7 +190,7 @@ for(i in c(1:18)) {
       Temp_subset_fm <- asreml( Yld ~ Genotype + density + Genotype:density + 
                                   ec + Genotype:ec + density:ec + Genotype:density:ec,
                                 random =~ at(Trial):Rep  + at(Trial):MainPlot +
-                                  at(Trial,c(1:3)):SubPlot +
+                                  at(Trial, subset_splt_split_plot):SubPlot +
                                   at(Trial,'Breeza 1'):Column +
                                   Trial + Env +
                                   spl(density, k=6) + spl(density, k=6):Genotype +
@@ -199,7 +210,7 @@ for(i in c(1:18)) {
       Temp_subset_fm <- asreml( Yld ~ Genotype + density + Genotype:density + 
                                   ec + Genotype:ec + density:ec + Genotype:density:ec,
                                 random =~ at(Trial):Rep  + at(Trial):MainPlot +
-                                  at(Trial,c(1:3)):SubPlot +
+                                  at(Trial, subset_splt_split_plot):SubPlot +
                                   at(Trial,'Breeza 1'):Column +
                                   Trial + Env +
                                   spl(density, k=6) + spl(density, k=6):Genotype +
@@ -310,7 +321,7 @@ Yield_EC1_full_fm <- asreml( Yld ~ Genotype + density + Genotype:density +
                           PostPAW + Genotype:PostPAW + density:PostPAW +
                           Genotype:density:PostPAW,
                         random =~ at(Trial):Rep  + at(Trial):MainPlot + 
-                          at(Trial,c(1:3)):SubPlot +
+                          at(Trial,c('Breeza 1', 'Breeza 2', 'Emerald', 'Moree')):SubPlot +
                           at(Trial,'Breeza 1'):Column + 
                           Trial + Env +
                           spl(density, k=6) + spl(density, k=6):Genotype +
@@ -332,7 +343,7 @@ Yield_EC1_fm <- asreml( Yld ~ Genotype + density + Genotype:density +
                         PostPAW + Genotype:PostPAW + density:PostPAW +
                         Genotype:density:PostPAW,
                       random =~ at(Trial):Rep  + at(Trial):MainPlot + 
-                        at(Trial,c(1:3)):SubPlot +
+                        at(Trial,c('Breeza 1', 'Breeza 2', 'Emerald', 'Moree')):SubPlot +
                         at(Trial,'Breeza 1'):Column + 
                         Trial + Env +
                         spl(density, k=6) + spl(density, k=6):Genotype +
@@ -370,7 +381,7 @@ Yield_final_fm <- asreml( Yld ~ Genotype + density + Genotype:density +
                             PreFlwEvap + density:PreFlwEvap +
                             PostMaxT + density:PostMaxT,
                           random =~ at(Trial):Rep  + at(Trial):MainPlot +
-                            at(Trial,c(1:3)):SubPlot +
+                            at(Trial,c('Breeza 1', 'Breeza 2', 'Emerald', 'Moree')):SubPlot +
                             at(Trial,'Breeza 1'):Column +
                             Trial + Env +
                             spl(density) + spl(density):Genotype +
@@ -472,9 +483,9 @@ mean(Sorghum_EC1_adj_df$LOF, na.rm=T)
 
 
 
-# 4.3 Obtain predictions for Post-flowering plant avaliable water from the final model ----
+# 4.3 Obtain predictions for Post-flowering plant available water from the final model ----
 
-# Obtain predictions for the Post-flowering plant avaliable water by genotype interaction effect
+# Obtain predictions for the Post-flowering plant available water by genotype interaction effect
 PostPAW_pred <- predict( Yield_final_fm, classify='PostPAW:ISW:PreCumRad:PrePAW:ptq:PreFlwEvap:PostMaxT:Genotype:density', 
          levels=list('PostPAW'=aux_parallel_final$PostPAW,
                      'Genotype'=aux_parallel_final$Genotype,
@@ -738,7 +749,10 @@ for (j in c(1:6)){
   Sorghum_subset_df$Env <- factor(Sorghum_subset_df$Env)
   Sorghum_subset_df$ResidualTOS <- factor(Sorghum_subset_df$ResidualTOS)
   Sorghum_subset_df$Genotype <- factor(Sorghum_subset_df$Genotype)
-  # Run a slightly different version of the model based on which trial has been removed in the cross validation procedure
+  # Identify trials with a split-split plot design from the subsetted data 
+  subset_splt_split_plot <- levels(Sorghum_subset_df$Trial)[levels(Sorghum_subset_df$Trial)%in%trials_splt_split_plot]
+
+  # Run the model based on which trial has been removed in the cross validation procedure
   if(j==1){
     # Note that the knot points are reduced back to 6 for cross validation to significantly speed up the cross validation process
     Temp_subset_fm <- asreml( Yld ~ Genotype + density + Genotype:density +
@@ -750,7 +764,7 @@ for (j in c(1:6)){
                                 PreFlwEvap + density:PreFlwEvap +
                                 PostMaxT + density:PostMaxT,
                               random =~ at(Trial):Rep  + at(Trial):MainPlot +
-                                at(Trial,c(1:3)):SubPlot +
+                                at(Trial, subset_splt_split_plot):SubPlot +
                                 #at(Trial,'Breeza 1'):Column +
                                 Trial + Env +
                                 spl(density, k=6) + spl(density, k=6):Genotype +
@@ -778,7 +792,7 @@ for (j in c(1:6)){
                                 PreFlwEvap + density:PreFlwEvap +
                                 PostMaxT + density:PostMaxT,
                               random =~ at(Trial):Rep  + at(Trial):MainPlot +
-                                at(Trial,c(1:3)):SubPlot +
+                                at(Trial, subset_splt_split_plot):SubPlot +
                                 at(Trial,'Breeza 1'):Column +
                                 Trial + Env +
                                 spl(density, k=6) + spl(density, k=6):Genotype +
@@ -806,7 +820,7 @@ for (j in c(1:6)){
                                 PreFlwEvap + density:PreFlwEvap +
                                 PostMaxT + density:PostMaxT,
                               random =~ at(Trial):Rep  + at(Trial):MainPlot +
-                                at(Trial,c(1:3)):SubPlot +
+                                at(Trial, subset_splt_split_plot):SubPlot +
                                 at(Trial,'Breeza 1'):Column +
                                 Trial + Env +
                                 spl(density, k=6) + spl(density, k=6):Genotype +
@@ -905,13 +919,13 @@ GxExM_final <- ggplot( Final_pred$pvals , aes( density , predicted.value )) +
   geom_ribbon(aes(ymin=predicted.value-2*std.error,
                   ymax=predicted.value+2*std.error, group=Env),fill="Red",
               alpha=0.1, linetype=0) +
-  geom_ribbon(data=CrossValid_final_subset_pred, aes(ymin=predicted.value-2*std.error,
-                              ymax=predicted.value+2*std.error, group=Env),fill="Blue",
-              alpha=0.1, linetype=0) +
+  # geom_ribbon(data=CrossValid_final_subset_pred, aes(ymin=predicted.value-2*std.error,
+  #                             ymax=predicted.value+2*std.error, group=Env),fill="Blue",
+  #             alpha=0.1, linetype=0) +
   geom_point(data = SorghumMET_Adj.df , aes(x = density , y = Yield_Adj) ,
              stat = "identity" , size=0.8) +
   geom_smooth(colour="Red", size=0.4) +
-  geom_smooth(data=CrossValid_final_subset_pred, colour="Blue", size=0.4) +
+  #geom_smooth(data=CrossValid_final_subset_pred, colour="Blue", size=0.4) +
   facet_grid(Genotype~Env) + 
   xlab(expression(~Established~plant~population~"(plants/"*m^2*")")) +
   ylab("Yield (t/ha)") +
@@ -933,7 +947,8 @@ GxExM_final <- ggplot( Final_pred$pvals , aes( density , predicted.value )) +
 # Display the figure
 GxExM_final
 
-
+# Note that in the figure above, the red regression line is the predictions from a tested genotype in a tested environment
+#   Whilst the blue (commented out) are the predictions from a tested genotype in an untested environment.
 
 
 
